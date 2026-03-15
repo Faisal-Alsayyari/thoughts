@@ -13,20 +13,24 @@ export default function ChatNode({ id, data, isConnectable }: NodeProps<Node<Cha
     isLoading,
   } = useCompletion({
     api: '/api/chat',
+    streamProtocol: 'text',
     initialCompletion: data.response,
-    onFinish: (_prompt, completion) => { // prefixed with _ to avoid unused var
+    onFinish: (_prompt, completion) => {
+      console.log('Stream finished. Full completion:', completion);
       data.onChange?.(id, 'response', completion);
       data.onChange?.(id, 'status', 'idle');
     },
     onError: (err) => {
-      console.error(err);
+      console.error('Stream error callback:', err);
       data.onChange?.(id, 'status', 'idle');
     }
   });
 
   // Sync completion to local state and global for visuals
   useEffect(() => {
+    // Log updates during streaming to verify data is arriving
     if (isLoading && completion) {
+       console.log('Streaming update chunk:', completion);
        setResponse(completion);
     }
   }, [completion, isLoading]);
@@ -34,6 +38,7 @@ export default function ChatNode({ id, data, isConnectable }: NodeProps<Node<Cha
   const handleGenerate = async () => {
     if (!prompt.trim()) return;
     
+    console.log('[ChatNode] Generating response for prompt:', prompt);
     data.onChange?.(id, 'prompt', prompt);
     data.onChange?.(id, 'status', 'loading');
     

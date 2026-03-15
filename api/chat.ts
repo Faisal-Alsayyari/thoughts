@@ -1,4 +1,4 @@
-import { openai } from '@ai-sdk/openai';
+import { google } from '@ai-sdk/google';
 import { streamText } from 'ai';
 
 export const config = {
@@ -20,7 +20,7 @@ export default async function handler(req: Request) {
       ];
 
       const result = await streamText({
-        model: openai('gpt-4-turbo'),
+        model: google('gemini-2.5-flash'),
         messages,
       });
 
