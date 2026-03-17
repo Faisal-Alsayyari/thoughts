@@ -34,7 +34,7 @@ export function useChatTree() {
         const newNode: ChatNode = {
           id: newId,
           type: 'chatNode',
-          position: { x: parent.position.x + randomX, y: parent.position.y + 350 },
+          position: { x: parent.position.x + randomX, y: parent.position.y + 500 },
           data: {
               context: newContext,
               prompt: '',

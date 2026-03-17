@@ -31,8 +31,9 @@ export default async function handler(req: Request) {
       
       const system_prompt = "Do NOT attempt to use headers or any type of formatting outside of"
       + "numbers, letters, or dashes for SINGLE ORDER lists. DO NOT try to use nested lists. This is a" 
-      + "VERY STRICT RULE. Again, NO HEADERS or any formatting, including bold letters or emphasized text. Even with lists, only use them when necessary"
-      + "and don't obstruct a conversational tone in favor of using lists.";
+      + "VERY STRICT RULE. Again, NO HEADERS or any formatting, including bold letters or emphasized text."
+      + "This means ABSOLUTELY NO use of ASTERISKS for the sake of formatting. Even with lists, only use"
+      + "them when necessary and don't obstruct a conversational tone in favor of using lists.";
 
       const messages = [
         ...(context || []), // append ancestor context (from the request) or nothing if it's empty
