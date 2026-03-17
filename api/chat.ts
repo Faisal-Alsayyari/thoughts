@@ -29,12 +29,13 @@ export default async function handler(req: Request) {
       // Only append this system prompt on the root node, i.e. the context (from previous nodes)
       // is empty.
       
-      const system_prompt = "Do NOT attempt to use headers or any time of formatting outside of"
+      const system_prompt = "Do NOT attempt to use headers or any type of formatting outside of"
       + "numbers, letters, or dashes for SINGLE ORDER lists. DO NOT try to use nested lists. This is a" 
-      + "VERY STRICT RULE. Again, NO HEADERS or any formatting";
+      + "VERY STRICT RULE. Again, NO HEADERS or any formatting, including bold letters or emphasized text. Even with lists, only use them when necessary"
+      + "and don't obstruct a conversational tone in favor of using lists.";
 
       const messages = [
-        ...(context || []),
+        ...(context || []), // append ancestor context (from the request) or nothing if it's empty
         { role: 'user', content: prompt }
       ];
 
@@ -44,6 +45,8 @@ export default async function handler(req: Request) {
         messages,
       });
 
+      // this current implementation already returns a response token by token since
+      // toTextStreamResponse sends text deltas
       return result.toTextStreamResponse();
     } catch (error) {
       console.error(error);
@@ -51,5 +54,6 @@ export default async function handler(req: Request) {
     }
   }
 
+  // something other than GET or POST was sent
   return new Response('Method not allowed', { status: 405 });
 }

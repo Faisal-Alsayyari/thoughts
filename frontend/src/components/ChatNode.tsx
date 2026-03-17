@@ -68,6 +68,12 @@ export default function ChatNode({ id, data, isConnectable }: NodeProps<Node<Cha
           className="nodrag"
           value={prompt}
           onChange={(e) => setPrompt(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter' && !e.shiftKey) {
+              e.preventDefault();
+              handleGenerate();
+            }
+          }}
           placeholder="Enter prompt..."
           style={{ width: '100%', minHeight: '60px', padding: '5px', resize: 'vertical' }}
           onBlur={() => data.onChange?.(id, 'prompt', prompt)}
@@ -75,13 +81,13 @@ export default function ChatNode({ id, data, isConnectable }: NodeProps<Node<Cha
       </div>
       
       <div style={{ display: 'flex', gap: '5px', marginBottom: '10px' }}>
-        <button 
+        {/*<button 
           onClick={handleGenerate} 
           disabled={isLoading || !prompt.trim()}
           style={{ cursor: isLoading ? 'wait' : 'pointer' }}
         >
           {isLoading ? 'Generating...' : 'Generate'}
-        </button>
+        </button>*/}
         
         <button 
           onClick={() => data.onAddChild?.(id)}
