@@ -129,15 +129,37 @@ export default function ChatNode({ id, data, isConnectable }: NodeProps<Node<Cha
             }}
           />
           {!isLocked && prompt.trim().length > 0 && (
-            <div style={{
-              position: 'absolute',
-              bottom: '8px',
-              right: '8px',
-              fontSize: '10px',
-              color: '#9ca3af' 
-            }}>
-              Press Enter ↵
-            </div>
+            <button 
+              onClick={handleGenerate}
+              className="nodrag"
+              style={{
+                position: 'absolute',
+                bottom: '10px',
+                right: '10px',
+                fontSize: '12px',
+                color: '#4b5563',
+                background: '#f3f4f6',
+                border: '1px solid #e5e7eb',
+                cursor: 'pointer',
+                padding: '6px 12px',
+                borderRadius: '6px',
+                transition: 'all 0.2s',
+                fontWeight: 500
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.backgroundColor = '#e5e7eb';
+                e.currentTarget.style.borderColor = '#d1d5db';
+                e.currentTarget.style.color = '#1f2937';
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.backgroundColor = '#f3f4f6';
+                e.currentTarget.style.borderColor = '#e5e7eb';
+                e.currentTarget.style.color = '#4b5563';
+              }}
+              title="Send message"
+            >
+              Send ↵
+            </button>
           )}
         </div>
       </div>
