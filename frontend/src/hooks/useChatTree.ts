@@ -29,12 +29,12 @@ export function useChatTree() {
         if (!parent) return currentNodes;
         
         const newContext = buildChildContext(parent.data);
-        const randomX = Math.floor(Math.random() * 200) - 100;
         
         const newNode: ChatNode = {
           id: newId,
           type: 'chatNode',
-          position: { x: parent.position.x + randomX, y: parent.position.y + 500 },
+          // Offset x position based on total node count to prevent overlap
+          position: { x: parent.position.x + 50 + (currentNodes.length * 20), y: parent.position.y + 450 },
           data: {
               context: newContext,
               prompt: '',
