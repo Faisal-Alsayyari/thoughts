@@ -16,6 +16,9 @@ export function useChatTree(conversationId: string) {
   const [expandedNodeId, setExpandedNodeId] = useState<string | null>(null);
   const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const customTitleRef = useRef<string | null>(null);
+  const lastContentHashRef = useRef<string>('');
+  const lastUpdatedAtRef = useRef<number>(Date.now());
+  const createdAtRef = useRef<number>(Date.now());
 
   // Streaming optimization: accumulate tokens in a ref, flush to state on interval
   const streamingContentRef = useRef('');
@@ -242,6 +245,8 @@ export function useChatTree(conversationId: string) {
       if (cancelled) return;
       if (conv) {
         customTitleRef.current = conv.title || null;
+        createdAtRef.current = conv.createdAt || Date.now();
+        lastUpdatedAtRef.current = conv.updatedAt || Date.now();
         const hydrated = deserializeNodes(conv.nodes, {
           onSendMessage: handleSendMessage,
           onAddChild: handleAddChild,
@@ -294,13 +299,23 @@ export function useChatTree(conversationId: string) {
       }
       const title = customTitleRef.current || autoTitle;
 
+      // Only bump updatedAt when message content actually changes (not on
+      // node drags / position changes), so the sidebar stays stable.
+      const contentHash = JSON.stringify(
+        nodes.map(n => ({ id: n.id, messages: n.data.messages }))
+      );
+      if (contentHash !== lastContentHashRef.current) {
+        lastContentHashRef.current = contentHash;
+        lastUpdatedAtRef.current = Date.now();
+      }
+
       const conv: Conversation = {
         id: conversationId,
         title,
         nodes: serializeNodes(nodes),
         edges,
-        createdAt: Date.now(),
-        updatedAt: Date.now(),
+        createdAt: createdAtRef.current,
+        updatedAt: lastUpdatedAtRef.current,
       };
 
       saveConversation(conv);
@@ -328,6 +343,7 @@ export function useChatTree(conversationId: string) {
 
   const setCustomTitle = useCallback((title: string) => {
     customTitleRef.current = title;
+    lastUpdatedAtRef.current = Date.now();
   }, []);
 
   return {
