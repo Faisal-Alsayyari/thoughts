@@ -8,25 +8,36 @@ export type Message = {
 export type ChatNodeData = {
   // The accumulated history from ancestors (fixed at creation)
   context: Message[];
-  
-  // The current interaction
-  prompt: string;
-  response: string;
+
+  // The conversation within this node (multi-turn)
+  messages: Message[];
+
+  // AI-generated summary for multi-turn thumbnail display
+  summary?: string;
+  // Number of messages when summary was last generated (for staleness check)
+  summaryMessageCount?: number;
+
+  // Transient streaming state
   status: 'idle' | 'loading' | 'streaming';
 
   // Actions
-  onChange?: (id: string, field: 'prompt' | 'response' | 'status', value: string) => void;
-  onGenerate?: (id: string) => void;
+  onSendMessage?: (id: string, content: string) => void;
   onAddChild?: (id: string) => void;
+  onExpand?: (id: string) => void;
+  onUpdateSummary?: (id: string, summary: string) => void;
 };
 
 export type ChatNode = Node<ChatNodeData>;
 
-// Serializable version of ChatNodeData (no callbacks, status always idle)
+// Serializable version of ChatNodeData (no callbacks, no status)
 export type SerializedChatNodeData = {
   context: Message[];
-  prompt: string;
-  response: string;
+  messages: Message[];
+  summary?: string;
+  summaryMessageCount?: number;
+  // Legacy fields for migration
+  prompt?: string;
+  response?: string;
 };
 
 export type SerializedChatNode = Node<SerializedChatNodeData>;

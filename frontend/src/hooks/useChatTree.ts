@@ -4,7 +4,7 @@ import {
 type Edge, 
   type OnNodesChange, type OnEdgesChange, type OnConnect 
 } from '@xyflow/react';
-import type { ChatNode, Conversation } from '../types/node';
+import type { ChatNode, Conversation, Message } from '../types/node';
 import { buildChildContext } from '../lib/contextBuilder';
 import { saveConversation, loadConversation } from '../lib/db';
 import { serializeNodes, deserializeNodes } from '../lib/serialization';
@@ -13,17 +13,106 @@ export function useChatTree(conversationId: string) {
   const [nodes, setNodes] = useState<ChatNode[]>([]);
   const [edges, setEdges] = useState<Edge[]>([]);
   const [loaded, setLoaded] = useState(false);
+  const [expandedNodeId, setExpandedNodeId] = useState<string | null>(null);
   const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const titleSetRef = useRef(false);
 
-  const handleOnChange = useCallback((id: string, field: 'prompt' | 'response' | 'status', value: string) => {
-      setNodes((nds) => nds.map((n) => {
-        if (n.id === id) {
-             // Create a new data object reference !Important for ReactFlow
-            return { ...n, data: { ...n.data, [field]: value } };
-        }
-        return n;
-      }));
+  // Append a message to a node's messages array
+  const updateNodeMessages = useCallback((id: string, messages: Message[]) => {
+    setNodes((nds) => nds.map((n) => {
+      if (n.id === id) {
+        return { ...n, data: { ...n.data, messages } };
+      }
+      return n;
+    }));
+  }, []);
+
+  const updateNodeStatus = useCallback((id: string, status: 'idle' | 'loading' | 'streaming') => {
+    setNodes((nds) => nds.map((n) => {
+      if (n.id === id) {
+        return { ...n, data: { ...n.data, status } };
+      }
+      return n;
+    }));
+  }, []);
+
+  const handleSendMessage = useCallback(async (id: string, content: string) => {
+    // Get current node
+    let currentMessages: Message[] = [];
+    let currentContext: Message[] = [];
+
+    setNodes((nds) => {
+      const node = nds.find((n) => n.id === id);
+      if (node) {
+        currentMessages = [...node.data.messages];
+        currentContext = node.data.context;
+      }
+      return nds;
+    });
+
+    const userMessage: Message = { role: 'user', content };
+    const updatedMessages = [...currentMessages, userMessage];
+
+    // Update messages with user message and set loading
+    setNodes((nds) => nds.map((n) => {
+      if (n.id === id) {
+        return { ...n, data: { ...n.data, messages: updatedMessages, status: 'loading' as const } };
+      }
+      return n;
+    }));
+
+    try {
+      // Build the full context for the API call: ancestor context + prior messages in this node + new user message
+      const apiContext = [...currentContext, ...currentMessages];
+      
+      const response = await fetch('/api/chat', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ prompt: content, context: apiContext }),
+      });
+
+      if (!response.ok || !response.body) {
+        throw new Error('Failed to get response');
+      }
+
+      const reader = response.body.getReader();
+      const decoder = new TextDecoder();
+      let assistantContent = '';
+
+      updateNodeStatus(id, 'streaming');
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        assistantContent += decoder.decode(value, { stream: true });
+        const streamingMessages = [...updatedMessages, { role: 'assistant' as const, content: assistantContent }];
+        updateNodeMessages(id, streamingMessages);
+      }
+
+      // Finalize
+      const finalMessages = [...updatedMessages, { role: 'assistant' as const, content: assistantContent }];
+      updateNodeMessages(id, finalMessages);
+      updateNodeStatus(id, 'idle');
+    } catch (err) {
+      console.error('Stream error:', err);
+      updateNodeStatus(id, 'idle');
+    }
+  }, [updateNodeMessages, updateNodeStatus]);
+
+  const handleUpdateSummary = useCallback((id: string, summary: string) => {
+    setNodes((nds) => nds.map((n) => {
+      if (n.id === id) {
+        return { ...n, data: { ...n.data, summary, summaryMessageCount: n.data.messages.length } };
+      }
+      return n;
+    }));
+  }, []);
+
+  const handleExpand = useCallback((id: string) => {
+    setExpandedNodeId(id);
+  }, []);
+
+  const handleCloseExpand = useCallback(() => {
+    setExpandedNodeId(null);
   }, []);
 
   const handleAddChild = useCallback((parentId: string) => {
@@ -38,15 +127,15 @@ export function useChatTree(conversationId: string) {
         const newNode: ChatNode = {
           id: newId,
           type: 'chatNode',
-          // Offset x position based on total node count to prevent overlap
           position: { x: parent.position.x + 50 + (currentNodes.length * 20), y: parent.position.y + 450 },
           data: {
               context: newContext,
-              prompt: '',
-              response: '',
+              messages: [],
               status: 'idle',
-              onChange: handleOnChange,
-              onAddChild: handleAddChild
+              onSendMessage: handleSendMessage,
+              onAddChild: handleAddChild,
+              onExpand: handleExpand,
+              onUpdateSummary: handleUpdateSummary,
           }
         };
         return [...currentNodes, newNode];
@@ -56,7 +145,45 @@ export function useChatTree(conversationId: string) {
         ...prevEdges,
         { id: `e${parentId}-${newId}`, source: parentId, target: newId }
     ]);
-  }, [handleOnChange]);
+  }, [handleSendMessage, handleExpand, handleUpdateSummary]);
+
+  const handleSendInNewNode = useCallback(async (parentId: string, content: string) => {
+    const newId = window.crypto.randomUUID();
+
+    setNodes((currentNodes) => {
+      const parent = currentNodes.find(n => n.id === parentId);
+      if (!parent) return currentNodes;
+
+      const newContext = buildChildContext(parent.data);
+
+      const newNode: ChatNode = {
+        id: newId,
+        type: 'chatNode',
+        position: { x: parent.position.x + 50 + (currentNodes.length * 20), y: parent.position.y + 450 },
+        data: {
+          context: newContext,
+          messages: [],
+          status: 'idle',
+          onSendMessage: handleSendMessage,
+          onAddChild: handleAddChild,
+          onExpand: handleExpand,
+          onUpdateSummary: handleUpdateSummary,
+        }
+      };
+      return [...currentNodes, newNode];
+    });
+
+    setEdges((prevEdges) => [
+      ...prevEdges,
+      { id: `e${parentId}-${newId}`, source: parentId, target: newId }
+    ]);
+
+    // Switch to the new node and send the message there
+    setExpandedNodeId(newId);
+    setTimeout(() => {
+      handleSendMessage(newId, content);
+    }, 50);
+  }, [handleSendMessage, handleAddChild, handleExpand, handleUpdateSummary]);
 
   // Load from IndexedDB on mount
   useEffect(() => {
@@ -65,12 +192,13 @@ export function useChatTree(conversationId: string) {
       if (cancelled) return;
       if (conv) {
         const hydrated = deserializeNodes(conv.nodes, {
-          onChange: handleOnChange,
+          onSendMessage: handleSendMessage,
           onAddChild: handleAddChild,
+          onExpand: handleExpand,
+          onUpdateSummary: handleUpdateSummary,
         });
         setNodes(hydrated);
         setEdges(conv.edges);
-        titleSetRef.current = !!conv.title;
       } else {
         // New conversation — create root node
         setNodes([{
@@ -79,11 +207,12 @@ export function useChatTree(conversationId: string) {
           position: { x: 0, y: 0 },
           data: {
             context: [],
-            prompt: '',
-            response: '',
+            messages: [],
             status: 'idle',
-            onChange: handleOnChange,
+            onSendMessage: handleSendMessage,
             onAddChild: handleAddChild,
+            onExpand: handleExpand,
+            onUpdateSummary: handleUpdateSummary,
           },
         }]);
         setEdges([]);
@@ -91,7 +220,7 @@ export function useChatTree(conversationId: string) {
       setLoaded(true);
     });
     return () => { cancelled = true; };
-  }, [conversationId, handleOnChange, handleAddChild]);
+  }, [conversationId, handleSendMessage, handleAddChild, handleExpand, handleUpdateSummary]);
 
   // Debounced auto-save to IndexedDB
   useEffect(() => {
@@ -100,10 +229,10 @@ export function useChatTree(conversationId: string) {
     if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
 
     saveTimerRef.current = setTimeout(() => {
-      // Derive title from first node's prompt
       const root = nodes.find((n) => n.id === 'root');
-      const title = root?.data.prompt
-        ? root.data.prompt.slice(0, 50) + (root.data.prompt.length > 50 ? '...' : '')
+      const firstUserMsg = root?.data.messages.find(m => m.role === 'user');
+      const title = firstUserMsg
+        ? firstUserMsg.content.slice(0, 50) + (firstUserMsg.content.length > 50 ? '...' : '')
         : 'New conversation';
 
       const conv: Conversation = {
@@ -111,7 +240,7 @@ export function useChatTree(conversationId: string) {
         title,
         nodes: serializeNodes(nodes),
         edges,
-        createdAt: Date.now(), // overwritten only on first save (put is upsert)
+        createdAt: Date.now(),
         updatedAt: Date.now(),
       };
 
@@ -145,5 +274,11 @@ export function useChatTree(conversationId: string) {
     onEdgesChange,
     onConnect,
     loaded,
+    expandedNodeId,
+    handleExpand,
+    handleCloseExpand,
+    handleSendMessage,
+    handleUpdateSummary,
+    handleSendInNewNode,
   };
 }

@@ -10,13 +10,16 @@ interface ThoughtsDB extends DBSchema {
 }
 
 const DB_NAME = 'thoughts-db';
-const DB_VERSION = 1;
+const DB_VERSION = 2;
 
 function getDB() {
   return openDB<ThoughtsDB>(DB_NAME, DB_VERSION, {
-    upgrade(db) {
-      const store = db.createObjectStore('conversations', { keyPath: 'id' });
-      store.createIndex('by-updated', 'updatedAt');
+    upgrade(db, oldVersion) {
+      if (oldVersion < 1) {
+        const store = db.createObjectStore('conversations', { keyPath: 'id' });
+        store.createIndex('by-updated', 'updatedAt');
+      }
+      // v2: migration from prompt/response to messages[] happens in serialization layer on load
     },
   });
 }

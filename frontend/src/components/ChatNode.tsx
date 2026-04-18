@@ -1,213 +1,207 @@
 import { Handle, Position, type NodeProps, type Node } from '@xyflow/react';
-import { useCompletion } from '@ai-sdk/react';
-import { useState, useEffect, useRef } from 'react';
 import type { ChatNodeData } from '../types/node';
  
 export default function ChatNode({ id, data, isConnectable }: NodeProps<Node<ChatNodeData>>) {
-  const [prompt, setPrompt] = useState(data.prompt || '');
-  const [response, setResponse] = useState(data.response || '');
-  const textareaRef = useRef<HTMLTextAreaElement>(null);
- 
-  const {
-    completion,
-    complete,
-    isLoading,
-  } = useCompletion({
-    api: '/api/chat',
-    streamProtocol: 'text',
-    initialCompletion: data.response,
-    onFinish: (_prompt, completion) => {
-      console.log('Stream finished. Full completion:', completion);
-      data.onChange?.(id, 'response', completion);
-      data.onChange?.(id, 'status', 'idle');
-    },
-    onError: (err) => {
-      console.error('Stream error callback:', err);
-      data.onChange?.(id, 'status', 'idle');
-    }
-  });
+  const messages = data.messages || [];
+  const userMessages = messages.filter(m => m.role === 'user');
+  const assistantMessages = messages.filter(m => m.role === 'assistant');
+  const hasResponse = assistantMessages.length > 0;
+  const isMultiTurn = messages.length > 2;
+  const isStreaming = data.status === 'loading' || data.status === 'streaming';
 
-  // Sync completion to local state and global for visuals
-  useEffect(() => {
-    // Log updates during streaming to verify data is arriving
-    if (isLoading && completion) {
-       console.log('Streaming update chunk:', completion);
-       setResponse(completion);
-    }
-  }, [completion, isLoading]);
+  const firstPrompt = userMessages[0]?.content || '';
+  const firstResponse = assistantMessages[0]?.content || '';
 
-  const handleGenerate = async () => {
-    if (!prompt.trim()) return;
-    
-    console.log('[ChatNode] Generating response for prompt:', prompt);
-    data.onChange?.(id, 'prompt', prompt);
-    data.onChange?.(id, 'status', 'loading');
-    
-    await complete(prompt, { 
-      body: { 
-        context: data.context 
-      } 
-    });
-  };
-
-  // Auto-resize textarea
-  useEffect(() => {
-    if (textareaRef.current) {
-      textareaRef.current.style.height = 'auto';
-      textareaRef.current.style.height = textareaRef.current.scrollHeight + 'px';
-    }
-  }, [prompt]);
-
-  const isLocked = isLoading || !!response || !!data.response;
- 
   return (
-    <div className="react-flow__node-default" style={{ 
-      padding: '15px', 
-      borderRadius: '12px', 
-      border: '1px solid #e5e7eb', 
-      background: '#ffffff', 
-      width: '350px',
-      textAlign: 'left',
-      boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06)',
-      fontFamily: 'Inter, system-ui, sans-serif'
-    }}>
+    <div 
+      className="react-flow__node-default" 
+      onClick={(e) => {
+        // Don't expand when clicking the Add button
+        if ((e.target as HTMLElement).closest('[data-action="add-child"]')) return;
+        data.onExpand?.(id);
+      }}
+      style={{ 
+        padding: '15px', 
+        borderRadius: '12px', 
+        border: '1px solid #e5e7eb', 
+        background: '#ffffff', 
+        width: '350px',
+        textAlign: 'left',
+        boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06)',
+        fontFamily: 'Inter, system-ui, sans-serif',
+        cursor: 'pointer',
+        transition: 'box-shadow 0.2s',
+      }}
+      onMouseEnter={(e) => {
+        e.currentTarget.style.boxShadow = '0 8px 25px -5px rgba(0, 0, 0, 0.15), 0 4px 6px -1px rgba(0, 0, 0, 0.06)';
+      }}
+      onMouseLeave={(e) => {
+        e.currentTarget.style.boxShadow = '0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06)';
+      }}
+    >
       <Handle type="target" position={Position.Top} isConnectable={isConnectable} />
-      
-      <div style={{ marginBottom: '12px' }}>
-        <div style={{ 
-          display: 'flex', 
-          justifyContent: 'space-between', 
-          alignItems: 'center', 
-          marginBottom: '8px', 
-          fontSize: '11px', 
-          color: '#9ca3af',
-          textTransform: 'uppercase',
-          letterSpacing: '0.05em',
-          fontWeight: 600
-        }}>
-           <span>Input</span>
-           <span>Context: {data.context.length}</span>
-        </div>
-        
+
+      {/* Empty node — prompt to click */}
+      {messages.length === 0 && !isStreaming && (
         <div style={{
-          position: 'relative',
-          background: isLocked ? '#f9fafb' : '#fff',
-          borderRadius: '8px',
-          border: isLocked ? '1px solid transparent' : '1px solid #e5e7eb',
-          transition: 'all 0.2s ease',
-          boxShadow: isLocked ? 'none' : '0 1px 2px 0 rgba(0, 0, 0, 0.05)'
+          fontSize: '14px',
+          color: '#9ca3af',
+          fontStyle: 'italic',
+          padding: '8px 0',
+          textAlign: 'center',
         }}>
-          <textarea
-            ref={textareaRef}
-            className="nodrag"
-            value={prompt}
-            disabled={isLocked}
-            onChange={(e) => setPrompt(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === 'Enter' && !e.shiftKey) {
-                e.preventDefault();
-                handleGenerate();
-              }
-            }}
-            onBlur={() => data.onChange?.(id, 'prompt', prompt)}
-            placeholder={isLocked ? "" : "Type a prompt..."}
-            style={{ 
-              width: '100%', 
-              minHeight: '40px', 
-              padding: '10px', 
-              resize: 'none', 
-              border: 'none',
-              outline: 'none',
-              background: 'transparent',
-              fontSize: '14px',
-              lineHeight: '1.5',
-              color: isLocked ? '#374151' : '#111827',
-              borderRadius: '8px',
-              overflow: 'hidden',
-              fontFamily: 'inherit',
-              boxSizing: 'border-box'
-            }}
-          />
-          {!isLocked && prompt.trim().length > 0 && (
-            <button 
-              onClick={handleGenerate}
-              className="nodrag"
-              style={{
-                position: 'absolute',
-                bottom: '10px',
-                right: '10px',
-                fontSize: '12px',
-                color: '#4b5563',
-                background: '#f3f4f6',
-                border: '1px solid #e5e7eb',
-                cursor: 'pointer',
-                padding: '6px 12px',
-                borderRadius: '6px',
-                transition: 'all 0.2s',
-                fontWeight: 500
-              }}
-              onMouseEnter={(e) => {
-                e.currentTarget.style.backgroundColor = '#e5e7eb';
-                e.currentTarget.style.borderColor = '#d1d5db';
-                e.currentTarget.style.color = '#1f2937';
-              }}
-              onMouseLeave={(e) => {
-                e.currentTarget.style.backgroundColor = '#f3f4f6';
-                e.currentTarget.style.borderColor = '#e5e7eb';
-                e.currentTarget.style.color = '#4b5563';
-              }}
-              title="Send message"
-            >
-              Send ↵
-            </button>
-          )}
+          Click to start chatting...
         </div>
-      </div>
-      
-      {/* Response Area */}
-      {(response || data.response || isLoading) && (
-        <div style={{ 
-          marginTop: '12px',
-          paddingTop: '12px',
-          borderTop: '1px solid #f3f4f6'
-        }}>
-          <div style={{ 
-            fontSize: '11px', 
+      )}
+
+      {/* Single-turn display: show prompt and response inline */}
+      {messages.length > 0 && !isMultiTurn && (
+        <>
+          {/* Prompt section */}
+          <div style={{ marginBottom: hasResponse || isStreaming ? '12px' : '0' }}>
+            <div style={{ 
+              fontSize: '11px', 
+              color: '#9ca3af',
+              textTransform: 'uppercase',
+              letterSpacing: '0.05em',
+              fontWeight: 600,
+              marginBottom: '6px',
+              display: 'flex',
+              justifyContent: 'space-between',
+            }}>
+              <span>Input</span>
+              <span>Context: {data.context.length}</span>
+            </div>
+            <div style={{
+              fontSize: '14px',
+              color: '#374151',
+              lineHeight: '1.5',
+              whiteSpace: 'pre-wrap',
+              background: '#f9fafb',
+              borderRadius: '8px',
+              padding: '10px',
+            }}>
+              {firstPrompt}
+            </div>
+          </div>
+
+          {/* Response section */}
+          {(firstResponse || isStreaming) && (
+            <div style={{ 
+              paddingTop: '12px',
+              borderTop: '1px solid #f3f4f6'
+            }}>
+              <div style={{ 
+                fontSize: '11px', 
+                color: '#9ca3af',
+                marginBottom: '6px',
+                textTransform: 'uppercase',
+                letterSpacing: '0.05em',
+                fontWeight: 600
+              }}>
+                AI Response
+              </div>
+              <div className="nodrag custom-scrollbar"
+                onWheelCapture={(e) => e.stopPropagation()}
+                onMouseDown={(e) => e.stopPropagation()}
+                style={{ 
+                  fontSize: '14px',
+                  whiteSpace: 'pre-wrap',
+                  color: '#374151',
+                  lineHeight: '1.6',
+                  maxHeight: '300px',
+                  overflowY: 'auto', 
+                  paddingRight: '8px',
+                  userSelect: 'text',
+                  cursor: 'text'
+              }}>
+                {firstResponse || (
+                  <span style={{color:'#9ca3af', fontStyle: 'italic'}}>Thinking...</span>
+                )}
+              </div>
+            </div>
+          )}
+        </>
+      )}
+
+      {/* Multi-turn display: show summary or message count */}
+      {isMultiTurn && (
+        <div>
+          <div style={{
+            fontSize: '11px',
             color: '#9ca3af',
-            marginBottom: '6px',
             textTransform: 'uppercase',
             letterSpacing: '0.05em',
-            fontWeight: 600
+            fontWeight: 600,
+            marginBottom: '8px',
+            display: 'flex',
+            justifyContent: 'space-between',
           }}>
-            AI Response
+            <span>{messages.length} messages</span>
+            <span>Context: {data.context.length}</span>
           </div>
-          <div className="nodrag custom-scrollbar"
-             onWheelCapture={(e) => e.stopPropagation()}
-             // onMouseDown stops the click from dragging the node, allowing text selection
-             onMouseDown={(e) => e.stopPropagation()}
-             style={{ 
-               fontSize: '14px',
-               whiteSpace: 'pre-wrap',
-               color: '#374151',
-               lineHeight: '1.6',
-               maxHeight: '300px',
-               overflowY: 'auto', 
-               paddingRight: '8px',
-               userSelect: 'text',
-               cursor: 'text'
+          
+          {data.summary ? (
+            <div style={{
+              fontSize: '14px',
+              color: '#374151',
+              lineHeight: '1.6',
+              whiteSpace: 'pre-wrap',
+              background: '#faf5ff',
+              borderRadius: '8px',
+              padding: '10px',
+              border: '1px solid #ede9fe',
+            }}>
+              {data.summary}
+            </div>
+          ) : (
+            <div style={{
+              fontSize: '14px',
+              color: '#6b7280',
+              lineHeight: '1.5',
+              whiteSpace: 'pre-wrap',
+              background: '#f9fafb',
+              borderRadius: '8px',
+              padding: '10px',
+            }}>
+              {firstPrompt.slice(0, 100)}{firstPrompt.length > 100 ? '...' : ''}
+            </div>
+          )}
+
+          <div style={{
+            fontSize: '12px',
+            color: '#9ca3af',
+            marginTop: '8px',
+            textAlign: 'center',
           }}>
-            {response || data.response || (
-              <span style={{color:'#9ca3af', fontStyle: 'italic'}}>Thinking...</span>
-            )}
+            Click to expand conversation
           </div>
         </div>
       )}
 
+      {/* Streaming indicator on canvas */}
+      {isStreaming && messages.length === 0 && (
+        <div style={{
+          fontSize: '14px',
+          color: '#9ca3af',
+          fontStyle: 'italic',
+          padding: '8px 0',
+          textAlign: 'center',
+        }}>
+          Thinking...
+        </div>
+      )}
+
       {/* Action Bar */}
-      {(response || data.response) && !isLoading && (
+      {hasResponse && !isStreaming && (
         <div style={{ marginTop: '12px', display: 'flex', justifyContent: 'flex-end' }}>
           <button 
-            onClick={() => data.onAddChild?.(id)}
+            data-action="add-child"
+            onClick={(e) => {
+              e.stopPropagation();
+              data.onAddChild?.(id);
+            }}
+            className="nodrag"
             style={{
               padding: '6px 12px',
               fontSize: '12px',

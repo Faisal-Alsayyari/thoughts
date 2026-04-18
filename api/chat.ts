@@ -44,6 +44,9 @@ export default async function handler(req: Request) {
         model: google('gemini-2.5-flash'),
         system: system_prompt,
         messages,
+        providerOptions: {
+          google: { thinkingConfig: { thinkingBudget: 0 } },
+        },
       });
 
       // this current implementation already returns a response token by token since
