@@ -1,16 +1,26 @@
 import { ReactFlow, Background, BackgroundVariant } from '@xyflow/react';
 import '@xyflow/react/dist/style.css';
-import { useMemo } from 'react';
+import { useMemo, useEffect } from 'react';
 import { useChatTree } from '../hooks/useChatTree';
 import ChatNode from './ChatNode';
 import ExpandedChatView from './ExpandedChatView';
 
-export default function Canvas({ conversationId }: { conversationId: string }) {
+interface CanvasProps {
+  conversationId: string;
+  onTitleSetterReady?: (setter: (title: string) => void) => void;
+}
+
+export default function Canvas({ conversationId, onTitleSetterReady }: CanvasProps) {
   const { 
     nodes, edges, onNodesChange, onEdgesChange, onConnect, loaded,
     expandedNodeId, handleCloseExpand, handleSendMessage,
     handleSendInNewNode, streamingNodeId, streamingContent,
+    setCustomTitle,
   } = useChatTree(conversationId);
+
+  useEffect(() => {
+    onTitleSetterReady?.(setCustomTitle);
+  }, [onTitleSetterReady, setCustomTitle]);
   
   const nodeTypes = useMemo(() => ({ chatNode: ChatNode }), []);
 

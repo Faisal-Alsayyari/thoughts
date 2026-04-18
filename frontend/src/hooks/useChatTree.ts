@@ -15,6 +15,7 @@ export function useChatTree(conversationId: string) {
   const [loaded, setLoaded] = useState(false);
   const [expandedNodeId, setExpandedNodeId] = useState<string | null>(null);
   const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const customTitleRef = useRef<string | null>(null);
 
   // Streaming optimization: accumulate tokens in a ref, flush to state on interval
   const streamingContentRef = useRef('');
@@ -240,6 +241,7 @@ export function useChatTree(conversationId: string) {
     loadConversation(conversationId).then((conv) => {
       if (cancelled) return;
       if (conv) {
+        customTitleRef.current = conv.title || null;
         const hydrated = deserializeNodes(conv.nodes, {
           onSendMessage: handleSendMessage,
           onAddChild: handleAddChild,
@@ -280,9 +282,17 @@ export function useChatTree(conversationId: string) {
     saveTimerRef.current = setTimeout(() => {
       const root = nodes.find((n) => n.id === 'root');
       const firstUserMsg = root?.data.messages.find(m => m.role === 'user');
-      const title = firstUserMsg
+      const autoTitle = firstUserMsg
         ? firstUserMsg.content.slice(0, 50) + (firstUserMsg.content.length > 50 ? '...' : '')
         : 'New conversation';
+
+      // Use custom title if manually renamed, otherwise auto-generate.
+      // Once auto-title is generated from the first message, persist it so
+      // it doesn't revert to 'New conversation' on future saves.
+      if (!customTitleRef.current && autoTitle !== 'New conversation') {
+        customTitleRef.current = autoTitle;
+      }
+      const title = customTitleRef.current || autoTitle;
 
       const conv: Conversation = {
         id: conversationId,
@@ -316,6 +326,10 @@ export function useChatTree(conversationId: string) {
     [],
   );
 
+  const setCustomTitle = useCallback((title: string) => {
+    customTitleRef.current = title;
+  }, []);
+
   return {
     nodes,
     edges,
@@ -331,5 +345,6 @@ export function useChatTree(conversationId: string) {
     handleSendInNewNode,
     streamingNodeId,
     streamingContent,
+    setCustomTitle,
   };
 }

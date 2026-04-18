@@ -12,6 +12,7 @@ export default function App() {
   const [renameValue, setRenameValue] = useState('');
   const menuRef = useRef<HTMLDivElement>(null);
   const renameInputRef = useRef<HTMLInputElement>(null);
+  const titleSetterRef = useRef<((title: string) => void) | null>(null);
 
   const refreshList = useCallback(async () => {
     const list = await listConversations();
@@ -70,6 +71,10 @@ export default function App() {
   const handleRenameCommit = async () => {
     if (renamingId && renameValue.trim()) {
       await renameConversation(renamingId, renameValue.trim());
+      // Also update the in-memory title so auto-save doesn't overwrite it
+      if (renamingId === activeId && titleSetterRef.current) {
+        titleSetterRef.current(renameValue.trim());
+      }
       await refreshList();
     }
     setRenamingId(null);
@@ -192,7 +197,11 @@ export default function App() {
 
       {/* Canvas area */}
       <div style={{ flex: 1, height: '100%' }}>
-        <Canvas key={activeId} conversationId={activeId} />
+        <Canvas
+          key={activeId}
+          conversationId={activeId}
+          onTitleSetterReady={(setter) => { titleSetterRef.current = setter; }}
+        />
       </div>
     </div>
   );
