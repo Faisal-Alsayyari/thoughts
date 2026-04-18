@@ -1,4 +1,4 @@
-import type { Node } from '@xyflow/react';
+import type { Node, Edge } from '@xyflow/react';
 
 export type Message = {
   role: 'user' | 'assistant';
@@ -21,3 +21,22 @@ export type ChatNodeData = {
 };
 
 export type ChatNode = Node<ChatNodeData>;
+
+// Serializable version of ChatNodeData (no callbacks, status always idle)
+export type SerializedChatNodeData = {
+  context: Message[];
+  prompt: string;
+  response: string;
+};
+
+export type SerializedChatNode = Node<SerializedChatNodeData>;
+
+export type Conversation = {
+  id: string;
+  title: string;
+  pinned?: boolean;
+  nodes: SerializedChatNode[];
+  edges: Edge[];
+  createdAt: number;
+  updatedAt: number;
+};

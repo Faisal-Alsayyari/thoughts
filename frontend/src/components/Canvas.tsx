@@ -4,10 +4,12 @@ import { useMemo } from 'react';
 import { useChatTree } from '../hooks/useChatTree';
 import ChatNode from './ChatNode';
 
-export default function Canvas() {
-  const { nodes, edges, onNodesChange, onEdgesChange, onConnect } = useChatTree();
+export default function Canvas({ conversationId }: { conversationId: string }) {
+  const { nodes, edges, onNodesChange, onEdgesChange, onConnect, loaded } = useChatTree(conversationId);
   
   const nodeTypes = useMemo(() => ({ chatNode: ChatNode }), []);
+
+  if (!loaded) return null;
 
   return (
     <div style={{ width: '100%', height: '100%' }}>

@@ -222,7 +222,7 @@ export default function ChatNode({ id, data, isConnectable }: NodeProps<Node<Cha
             onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#270949'}
             onMouseLeave={(e) => e.currentTarget.style.backgroundColor = '#390c6c'}
           >
-            + Add Child
+            + Add
           </button>
         </div>
       )}
