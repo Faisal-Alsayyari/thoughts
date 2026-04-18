@@ -16,6 +16,28 @@ export function useChatTree(conversationId: string) {
   const [expandedNodeId, setExpandedNodeId] = useState<string | null>(null);
   const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
+  // Streaming optimization: accumulate tokens in a ref, flush to state on interval
+  const streamingContentRef = useRef('');
+  const streamingIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const [streamingNodeId, setStreamingNodeId] = useState<string | null>(null);
+  const [streamingContent, setStreamingContent] = useState('');
+
+  const startStreamingFlush = useCallback(() => {
+    streamingIntervalRef.current = setInterval(() => {
+      setStreamingContent(streamingContentRef.current);
+    }, 50);
+  }, []);
+
+  const stopStreamingFlush = useCallback(() => {
+    if (streamingIntervalRef.current) {
+      clearInterval(streamingIntervalRef.current);
+      streamingIntervalRef.current = null;
+    }
+    setStreamingContent('');
+    setStreamingNodeId(null);
+  }, []);
+
+  /*
   // Append a message to a node's messages array
   const updateNodeMessages = useCallback((id: string, messages: Message[]) => {
     setNodes((nds) => nds.map((n) => {
@@ -33,7 +55,7 @@ export function useChatTree(conversationId: string) {
       }
       return n;
     }));
-  }, []);
+  }, []); */
 
   const handleSendMessage = useCallback(async (id: string, content: string) => {
     // Get current node
@@ -76,27 +98,54 @@ export function useChatTree(conversationId: string) {
 
       const reader = response.body.getReader();
       const decoder = new TextDecoder();
-      let assistantContent = '';
 
-      updateNodeStatus(id, 'streaming');
+      // Start streaming — update node status once, begin throttled content flush
+      streamingContentRef.current = '';
+      setStreamingNodeId(id);
+      setNodes((nds) => nds.map((n) => {
+        if (n.id === id) {
+          return { ...n, data: { ...n.data, status: 'streaming' as const } };
+        }
+        return n;
+      }));
+      startStreamingFlush();
 
       while (true) {
         const { done, value } = await reader.read();
         if (done) break;
-        assistantContent += decoder.decode(value, { stream: true });
-        const streamingMessages = [...updatedMessages, { role: 'assistant' as const, content: assistantContent }];
-        updateNodeMessages(id, streamingMessages);
+        streamingContentRef.current += decoder.decode(value, { stream: true });
       }
 
-      // Finalize
-      const finalMessages = [...updatedMessages, { role: 'assistant' as const, content: assistantContent }];
-      updateNodeMessages(id, finalMessages);
-      updateNodeStatus(id, 'idle');
+      // Finalize — write completed message + reset status in one setNodes call
+      const assistantContent = streamingContentRef.current;
+      stopStreamingFlush();
+      streamingContentRef.current = '';
+
+      setNodes((nds) => nds.map((n) => {
+        if (n.id === id) {
+          return {
+            ...n,
+            data: {
+              ...n.data,
+              messages: [...updatedMessages, { role: 'assistant' as const, content: assistantContent }],
+              status: 'idle' as const,
+            }
+          };
+        }
+        return n;
+      }));
     } catch (err) {
       console.error('Stream error:', err);
-      updateNodeStatus(id, 'idle');
+      stopStreamingFlush();
+      streamingContentRef.current = '';
+      setNodes((nds) => nds.map((n) => {
+        if (n.id === id) {
+          return { ...n, data: { ...n.data, status: 'idle' as const } };
+        }
+        return n;
+      }));
     }
-  }, [updateNodeMessages, updateNodeStatus]);
+  }, [startStreamingFlush, stopStreamingFlush]);
 
   const handleUpdateSummary = useCallback((id: string, summary: string) => {
     setNodes((nds) => nds.map((n) => {
@@ -280,5 +329,7 @@ export function useChatTree(conversationId: string) {
     handleSendMessage,
     handleUpdateSummary,
     handleSendInNewNode,
+    streamingNodeId,
+    streamingContent,
   };
 }

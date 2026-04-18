@@ -1,5 +1,6 @@
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect, useMemo } from 'react';
 import type { Message } from '../types/node';
+import MarkdownContent from './MarkdownContent';
 
 interface ExpandedChatViewProps {
   nodeId: string;
@@ -7,12 +8,21 @@ interface ExpandedChatViewProps {
   context: Message[];
   status: 'idle' | 'loading' | 'streaming';
   onSendMessage: (id: string, content: string) => void;
+  streamingContent?: string;
   onSendInNewNode: (parentId: string, content: string) => void;
   onClose: () => void;
 }
 
-export default function ExpandedChatView({ nodeId, messages, context, status, onSendMessage, onSendInNewNode, onClose }: ExpandedChatViewProps) {
+export default function ExpandedChatView({ nodeId, messages, context, status, streamingContent, onSendMessage, onSendInNewNode, onClose }: ExpandedChatViewProps) {
   const [input, setInput] = useState('');
+
+  // Append streaming content as a virtual assistant message (avoids updating nodes state per token)
+  const displayMessages = useMemo(() => {
+    if (streamingContent != null && streamingContent.length > 0) {
+      return [...messages, { role: 'assistant' as const, content: streamingContent }];
+    }
+    return messages;
+  }, [messages, streamingContent]);
   const [visible, setVisible] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
@@ -29,10 +39,17 @@ export default function ExpandedChatView({ nodeId, messages, context, status, on
     setTimeout(onClose, 200);
   };
 
-  // Auto-scroll to bottom on new messages
+  // Auto-scroll to bottom only when a response finishes (not during streaming)
+  const prevStatusRef = useRef(status);
   useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [messages]);
+    const wasStreaming = prevStatusRef.current === 'streaming' || prevStatusRef.current === 'loading';
+    const isNowIdle = status === 'idle';
+    // Scroll when: response just finished, or user just sent a message (messages grew while idle)
+    if ((wasStreaming && isNowIdle) || (status === 'idle')) {
+      messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+    }
+    prevStatusRef.current = status;
+  }, [status, messages.length]);
 
   // Auto-resize textarea
   useEffect(() => {
@@ -95,7 +112,7 @@ export default function ExpandedChatView({ nodeId, messages, context, status, on
           ← Back to canvas
         </button>
         <span style={{ fontSize: '13px', color: '#9ca3af' }}>
-          {messages.length} message{messages.length !== 1 ? 's' : ''} · {context.length} context message{context.length !== 1 ? 's' : ''}
+          {displayMessages.length} message{displayMessages.length !== 1 ? 's' : ''} · {context.length} context message{context.length !== 1 ? 's' : ''}
         </span>
       </div>
 
@@ -137,10 +154,10 @@ export default function ExpandedChatView({ nodeId, messages, context, status, on
                   color: msg.role === 'user' ? '#fff' : '#374151',
                   fontSize: '13px',
                   lineHeight: '1.5',
-                  whiteSpace: 'pre-wrap',
+                  whiteSpace: msg.role === 'user' ? 'pre-wrap' : undefined,
                   border: msg.role === 'assistant' ? '1px solid #e5e7eb' : 'none',
                 }}>
-                  {msg.content}
+                  {msg.role === 'assistant' ? <MarkdownContent content={msg.content} /> : msg.content}
                 </div>
               </div>
             ))}
@@ -164,7 +181,7 @@ export default function ExpandedChatView({ nodeId, messages, context, status, on
           </div>
         )}
 
-        {messages.map((msg, i) => (
+        {displayMessages.map((msg, i) => (
           <div key={i} style={{
             display: 'flex',
             justifyContent: msg.role === 'user' ? 'flex-end' : 'flex-start',
@@ -178,17 +195,17 @@ export default function ExpandedChatView({ nodeId, messages, context, status, on
               color: msg.role === 'user' ? '#fff' : '#374151',
               fontSize: '14px',
               lineHeight: '1.6',
-              whiteSpace: 'pre-wrap',
+              whiteSpace: msg.role === 'user' ? 'pre-wrap' : undefined,
               boxShadow: msg.role === 'assistant' ? '0 1px 3px rgba(0,0,0,0.06)' : 'none',
               border: msg.role === 'assistant' ? '1px solid #e5e7eb' : 'none',
             }}>
-              {msg.content}
+              {msg.role === 'assistant' ? <MarkdownContent content={msg.content} /> : msg.content}
             </div>
           </div>
         ))}
 
         {/* Streaming indicator */}
-        {status === 'loading' && (
+        {(status === 'loading' || (status === 'streaming' && !streamingContent)) && (
           <div style={{ display: 'flex', justifyContent: 'flex-start' }}>
             <div style={{
               padding: '12px 16px',

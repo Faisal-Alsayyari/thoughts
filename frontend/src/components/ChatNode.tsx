@@ -141,32 +141,28 @@ export default function ChatNode({ id, data, isConnectable }: NodeProps<Node<Cha
             <span>Context: {data.context.length}</span>
           </div>
           
-          {data.summary ? (
-            <div style={{
-              fontSize: '14px',
-              color: '#374151',
-              lineHeight: '1.6',
-              whiteSpace: 'pre-wrap',
-              background: '#faf5ff',
-              borderRadius: '8px',
-              padding: '10px',
-              border: '1px solid #ede9fe',
-            }}>
-              {data.summary}
-            </div>
-          ) : (
-            <div style={{
-              fontSize: '14px',
-              color: '#6b7280',
-              lineHeight: '1.5',
-              whiteSpace: 'pre-wrap',
-              background: '#f9fafb',
-              borderRadius: '8px',
-              padding: '10px',
-            }}>
-              {firstPrompt.slice(0, 100)}{firstPrompt.length > 100 ? '...' : ''}
-            </div>
-          )}
+          {(() => {
+            const lastMsg = messages[messages.length - 1];
+            const preview = lastMsg?.content?.slice(0, 120) || '';
+            const isUser = lastMsg?.role === 'user';
+            return (
+              <div style={{
+                fontSize: '14px',
+                color: isUser ? '#374151' : '#374151',
+                lineHeight: '1.5',
+                whiteSpace: 'pre-wrap',
+                background: isUser ? '#f9fafb' : '#faf5ff',
+                borderRadius: '8px',
+                padding: '10px',
+                border: isUser ? 'none' : '1px solid #ede9fe',
+              }}>
+                <span style={{ fontSize: '11px', color: '#9ca3af', fontWeight: 600 }}>
+                  {isUser ? 'You' : 'AI'}:
+                </span>{' '}
+                {preview}{lastMsg?.content?.length > 120 ? '...' : ''}
+              </div>
+            );
+          })()}
 
           <div style={{
             fontSize: '12px',
