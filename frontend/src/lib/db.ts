@@ -26,7 +26,7 @@ function getDB() {
 
 export async function saveConversation(conversation: Conversation): Promise<void> {
   const db = await getDB();
-  await db.put('conversations', { ...conversation, updatedAt: Date.now() });
+  await db.put('conversations', conversation);
 }
 
 export async function loadConversation(id: string): Promise<Conversation | undefined> {

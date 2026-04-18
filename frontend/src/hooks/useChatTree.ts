@@ -253,6 +253,11 @@ export function useChatTree(conversationId: string) {
           onExpand: handleExpand,
           onUpdateSummary: handleUpdateSummary,
         });
+        // Initialize content hash from loaded data so the auto-save effect
+        // doesn't see a mismatch and incorrectly bump updatedAt.
+        lastContentHashRef.current = JSON.stringify(
+          hydrated.map(n => ({ id: n.id, messages: n.data.messages }))
+        );
         setNodes(hydrated);
         setEdges(conv.edges);
       } else {
