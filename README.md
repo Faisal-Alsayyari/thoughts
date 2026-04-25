@@ -14,27 +14,26 @@ Traditional interfaces are inherently linear, which makes it harder to branch ou
 - Infinite canvas with zoom/pan
 - Node-based conversation system
 - Context inheritance across branches
-- AI-powered responses via Google's GenAI SDK
+- AI responses via Google's GenAI SDK
 
 # Tech-stack
 - Frontend: React + TypeScript + ReactFlow (for canvas-based UX)
-- Backend: Serverless API routes via Vercel
+- Backend: Serverless API routes via Vercel, analytics w/ Redis
+- Data: IndexedDB (per client, no accounts yet)
 - AI layer: Google GenAI SDK
 
 # Future Work
 ### UX
-- Expand node leads to a full chat view, allowing a single node to be treated as a linear chat
-- Better node layouts, with possibly user-customizable arrangements
+- Reusable canvas templates/personas
 - Update ancestor chats (with new context propagating downwards)
 - Drag and drop nodes into new trees (and possibly across canvases)
-### Product
-- Multiple canvases
-- Persistence
+- Quickly compare different branches in chat view
+- Merge similar branches
 ### AI
 - Better context engineering (ex: context compression, pruning, etc.)
-- Model switching
+- Model switching with BYOK model
+- Local inference & encrypted messages for privacy
 - Agentic workflows
 ### Infra
-- Persistent storage
-- Authentication
-- Rate limits
+- Import/export canvases
+- Account system with cloud persistence
