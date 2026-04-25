@@ -55,6 +55,8 @@ export default async function handler(req: Request) {
         { role: 'user', content: prompt },
       ];
 
+
+      // google genai sdk call
       const result = await streamText({
         model: google('gemini-2.5-flash'),
         system: system_prompt,
