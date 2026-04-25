@@ -8,15 +8,20 @@ import ExpandedChatView from './ExpandedChatView';
 interface CanvasProps {
   conversationId: string;
   onTitleSetterReady?: (setter: (title: string) => void) => void;
+  onResponse?: (response: Response) => void;
+  onRateLimitExceeded?: (resetAt: number) => void;
+  remaining: number | null;
+  isLimited: boolean;
+  resetAtLabel: string | null;
 }
 
-export default function Canvas({ conversationId, onTitleSetterReady }: CanvasProps) {
+export default function Canvas({ conversationId, onTitleSetterReady, onResponse, onRateLimitExceeded, remaining, isLimited, resetAtLabel }: CanvasProps) {
   const { 
     nodes, edges, onNodesChange, onEdgesChange, onConnect, loaded,
     expandedNodeId, handleCloseExpand, handleSendMessage,
     handleSendInNewNode, streamingNodeId, streamingContent,
     setCustomTitle,
-  } = useChatTree(conversationId);
+  } = useChatTree(conversationId, onResponse && onRateLimitExceeded ? { onResponse, onRateLimitExceeded } : undefined);
 
   useEffect(() => {
     onTitleSetterReady?.(setCustomTitle);
@@ -78,6 +83,9 @@ export default function Canvas({ conversationId, onTitleSetterReady }: CanvasPro
           onSendMessage={handleSendMessage}
           onSendInNewNode={handleSendInNewNode}
           onClose={handleClose}
+          remaining={remaining}
+          isLimited={isLimited}
+          resetAtLabel={resetAtLabel}
         />
       )}
     </div>

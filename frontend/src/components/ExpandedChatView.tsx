@@ -11,9 +11,12 @@ interface ExpandedChatViewProps {
   streamingContent?: string;
   onSendInNewNode: (parentId: string, content: string) => void;
   onClose: () => void;
+  remaining: number | null;
+  isLimited: boolean;
+  resetAtLabel: string | null;
 }
 
-export default function ExpandedChatView({ nodeId, messages, context, status, streamingContent, onSendMessage, onSendInNewNode, onClose }: ExpandedChatViewProps) {
+export default function ExpandedChatView({ nodeId, messages, context, status, streamingContent, onSendMessage, onSendInNewNode, onClose, remaining, isLimited, resetAtLabel }: ExpandedChatViewProps) {
   const [input, setInput] = useState('');
 
   // Append streaming content as a virtual assistant message (avoids updating nodes state per token)
@@ -27,7 +30,7 @@ export default function ExpandedChatView({ nodeId, messages, context, status, st
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
-  const isDisabled = status === 'loading' || status === 'streaming';
+  const isDisabled = status === 'loading' || status === 'streaming' || isLimited;
 
   // Animate in on mount
   useEffect(() => {
@@ -231,83 +234,113 @@ export default function ExpandedChatView({ nodeId, messages, context, status, st
         background: '#fff',
         flexShrink: 0,
       }}>
-        <div style={{
-          display: 'flex',
-          gap: '8px',
-          alignItems: 'flex-end',
-          maxWidth: '800px',
-          margin: '0 auto',
-        }}>
-          <textarea
-            ref={textareaRef}
-            value={input}
-            onChange={(e) => setInput(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === 'Enter' && !e.shiftKey) {
-                e.preventDefault();
-                handleSend();
-              }
-            }}
-            disabled={isDisabled}
-            placeholder="Type a message..."
-            rows={1}
-            className="custom-scrollbar"
-            style={{
-              flex: 1,
-              padding: '12px 16px',
-              fontSize: '14px',
-              lineHeight: '1.5',
-              border: '1px solid #e5e7eb',
-              borderRadius: '12px',
-              outline: 'none',
-              resize: 'none',
-              fontFamily: 'inherit',
-              background: isDisabled ? '#f9fafb' : '#fff',
-              color: '#111827',
-              boxSizing: 'border-box',
-              maxHeight: '150px',
-              overflowY: 'auto',
-            }}
-          />
-          <button
-            onClick={handleSend}
-            disabled={isDisabled || !input.trim()}
-            style={{
-              padding: '12px 20px',
-              fontSize: '14px',
-              fontWeight: 500,
-              color: '#fff',
-              backgroundColor: isDisabled || !input.trim() ? '#9ca3af' : '#390c6c',
-              border: 'none',
-              borderRadius: '12px',
-              cursor: isDisabled || !input.trim() ? 'default' : 'pointer',
-              transition: 'background-color 0.2s',
-              flexShrink: 0,
-            }}
-          >
-            Send
-          </button>
-          <button
-            onClick={handleSendNewNode}
-            disabled={isDisabled || !input.trim() || messages.length === 0}
-            title="Send this message as a new branched node"
-            style={{
-              padding: '12px 14px',
-              fontSize: '13px',
-              fontWeight: 500,
-              color: isDisabled || !input.trim() || messages.length === 0 ? '#9ca3af' : '#390c6c',
-              backgroundColor: 'transparent',
-              border: `1px solid ${isDisabled || !input.trim() || messages.length === 0 ? '#d1d5db' : '#390c6c'}`,
-              borderRadius: '12px',
-              cursor: isDisabled || !input.trim() || messages.length === 0 ? 'default' : 'pointer',
-              transition: 'all 0.2s',
-              flexShrink: 0,
-              whiteSpace: 'nowrap',
-            }}
-          >
-            ↗ New node
-          </button>
-        </div>
+        {isLimited ? (
+          <div style={{
+            maxWidth: '800px',
+            margin: '0 auto',
+            padding: '14px 16px',
+            background: '#fef2f2',
+            borderRadius: '12px',
+            border: '1px solid #fecaca',
+            textAlign: 'center',
+            color: '#b91c1c',
+            fontSize: '14px',
+          }}>
+            You've reached your 20-message daily limit.
+            {resetAtLabel && <> Resets at {resetAtLabel}.</>}
+          </div>
+        ) : (
+          <>
+            <div style={{
+              display: 'flex',
+              gap: '8px',
+              alignItems: 'flex-end',
+              maxWidth: '800px',
+              margin: '0 auto',
+            }}>
+              <textarea
+                ref={textareaRef}
+                value={input}
+                onChange={(e) => setInput(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' && !e.shiftKey) {
+                    e.preventDefault();
+                    handleSend();
+                  }
+                }}
+                disabled={isDisabled}
+                placeholder="Type a message..."
+                rows={1}
+                className="custom-scrollbar"
+                style={{
+                  flex: 1,
+                  padding: '12px 16px',
+                  fontSize: '14px',
+                  lineHeight: '1.5',
+                  border: '1px solid #e5e7eb',
+                  borderRadius: '12px',
+                  outline: 'none',
+                  resize: 'none',
+                  fontFamily: 'inherit',
+                  background: isDisabled ? '#f9fafb' : '#fff',
+                  color: '#111827',
+                  boxSizing: 'border-box',
+                  maxHeight: '150px',
+                  overflowY: 'auto',
+                }}
+              />
+              <button
+                onClick={handleSend}
+                disabled={isDisabled || !input.trim()}
+                style={{
+                  padding: '12px 20px',
+                  fontSize: '14px',
+                  fontWeight: 500,
+                  color: '#fff',
+                  backgroundColor: isDisabled || !input.trim() ? '#9ca3af' : '#390c6c',
+                  border: 'none',
+                  borderRadius: '12px',
+                  cursor: isDisabled || !input.trim() ? 'default' : 'pointer',
+                  transition: 'background-color 0.2s',
+                  flexShrink: 0,
+                }}
+              >
+                Send
+              </button>
+              <button
+                onClick={handleSendNewNode}
+                disabled={isDisabled || !input.trim() || messages.length === 0}
+                title="Send this message as a new branched node"
+                style={{
+                  padding: '12px 14px',
+                  fontSize: '13px',
+                  fontWeight: 500,
+                  color: isDisabled || !input.trim() || messages.length === 0 ? '#9ca3af' : '#390c6c',
+                  backgroundColor: 'transparent',
+                  border: `1px solid ${isDisabled || !input.trim() || messages.length === 0 ? '#d1d5db' : '#390c6c'}`,
+                  borderRadius: '12px',
+                  cursor: isDisabled || !input.trim() || messages.length === 0 ? 'default' : 'pointer',
+                  transition: 'all 0.2s',
+                  flexShrink: 0,
+                  whiteSpace: 'nowrap',
+                }}
+              >
+                ↗ New node
+              </button>
+            </div>
+            {remaining !== null && (
+              <div style={{
+                maxWidth: '800px',
+                margin: '6px auto 0',
+                textAlign: 'right',
+                fontSize: '12px',
+                color: remaining <= 5 ? '#d97706' : '#9ca3af',
+              }}>
+                {remaining} message{remaining !== 1 ? 's' : ''} remaining today
+              </div>
+            )}
+          </>
+        )}
       </div>
     </div>
   );

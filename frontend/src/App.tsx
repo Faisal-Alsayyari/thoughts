@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import Canvas from './components/Canvas';
 import { listConversations, deleteConversation, renameConversation, pinConversation } from './lib/db';
 import type { Conversation } from './types/node';
+import { useRateLimit } from './hooks/useRateLimit';
 
 export default function App() {
   const [conversations, setConversations] = useState<Conversation[]>([]);
@@ -13,6 +14,7 @@ export default function App() {
   const menuRef = useRef<HTMLDivElement>(null);
   const renameInputRef = useRef<HTMLInputElement>(null);
   const titleSetterRef = useRef<((title: string) => void) | null>(null);
+  const { remaining, isLimited, resetAtLabel, updateFromResponse, handleRateLimitExceeded } = useRateLimit();
 
   const refreshList = useCallback(async () => {
     const list = await listConversations();
@@ -201,6 +203,11 @@ export default function App() {
           key={activeId}
           conversationId={activeId}
           onTitleSetterReady={(setter) => { titleSetterRef.current = setter; }}
+          onResponse={updateFromResponse}
+          onRateLimitExceeded={handleRateLimitExceeded}
+          remaining={remaining}
+          isLimited={isLimited}
+          resetAtLabel={resetAtLabel}
         />
       </div>
     </div>

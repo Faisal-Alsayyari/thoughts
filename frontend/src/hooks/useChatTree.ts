@@ -8,8 +8,14 @@ import type { ChatNode, Conversation, Message } from '../types/node';
 import { buildChildContext } from '../lib/contextBuilder';
 import { saveConversation, loadConversation } from '../lib/db';
 import { serializeNodes, deserializeNodes } from '../lib/serialization';
+import { getDeviceId } from '../lib/deviceId';
 
-export function useChatTree(conversationId: string) {
+interface RateLimitCallbacks {
+  onResponse: (response: Response) => void;
+  onRateLimitExceeded: (resetAt: number) => void;
+}
+
+export function useChatTree(conversationId: string, rateLimitCallbacks?: RateLimitCallbacks) {
   const [nodes, setNodes] = useState<ChatNode[]>([]);
   const [edges, setEdges] = useState<Edge[]>([]);
   const [loaded, setLoaded] = useState(false);
@@ -92,13 +98,27 @@ export function useChatTree(conversationId: string) {
       
       const response = await fetch('/api/chat', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          'X-Device-ID': getDeviceId(),
+          'X-Timezone': Intl.DateTimeFormat().resolvedOptions().timeZone,
+          'X-Conversation-ID': conversationId,
+        },
         body: JSON.stringify({ prompt: content, context: apiContext }),
       });
+
+      if (response.status === 429) {
+        const body = await response.json().catch(() => ({})) as { resetAt?: number };
+        rateLimitCallbacks?.onRateLimitExceeded(body.resetAt ?? 0);
+        throw new Error('Rate limit exceeded');
+      }
 
       if (!response.ok || !response.body) {
         throw new Error('Failed to get response');
       }
+
+      // Sync remaining count from response headers
+      rateLimitCallbacks?.onResponse(response);
 
       const reader = response.body.getReader();
       const decoder = new TextDecoder();
