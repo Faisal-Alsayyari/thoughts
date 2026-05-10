@@ -1,3 +1,4 @@
+import { useState, useRef, useEffect } from 'react';
 import { Handle, Position, type NodeProps, type Node } from '@xyflow/react';
 import type { ChatNodeData } from '../types/node';
  
@@ -11,6 +12,20 @@ export default function ChatNode({ id, data, isConnectable }: NodeProps<Node<Cha
 
   const firstPrompt = userMessages[0]?.content || '';
   const firstResponse = assistantMessages[0]?.content || '';
+
+  const [menuOpen, setMenuOpen] = useState(false);
+  const menuRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!menuOpen) return;
+    const handleClickOutside = (e: MouseEvent) => {
+      if (menuRef.current && !menuRef.current.contains(e.target as unknown as Element)) {
+        setMenuOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, [menuOpen]);
 
   return (
     <div 
@@ -190,14 +205,17 @@ export default function ChatNode({ id, data, isConnectable }: NodeProps<Node<Cha
 
       {/* Action Bar */}
       {hasResponse && !isStreaming && (
-        <div style={{ marginTop: '12px', display: 'flex', justifyContent: 'flex-end' }}>
-          <button 
-            data-action="add-child"
+        <div
+          data-action="add-child"
+          ref={menuRef}
+          style={{ marginTop: '12px', display: 'flex', justifyContent: 'flex-end', position: 'relative' }}
+        >
+          <button
+            className="nodrag"
             onClick={(e) => {
               e.stopPropagation();
-              data.onAddChild?.(id);
+              setMenuOpen(o => !o);
             }}
-            className="nodrag"
             style={{
               padding: '6px 12px',
               fontSize: '12px',
@@ -207,13 +225,64 @@ export default function ChatNode({ id, data, isConnectable }: NodeProps<Node<Cha
               border: 'none',
               borderRadius: '6px',
               cursor: 'pointer',
-              transition: 'background-color 0.2s'
+              transition: 'background-color 0.2s',
             }}
             onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#270949'}
             onMouseLeave={(e) => e.currentTarget.style.backgroundColor = '#390c6c'}
           >
-            + Add
+            + Add ▾
           </button>
+
+          {menuOpen && (
+            <div
+              className="nodrag"
+              style={{
+                position: 'absolute',
+                bottom: '100%',
+                right: 0,
+                marginBottom: '4px',
+                background: '#fff',
+                border: '1px solid #e5e7eb',
+                borderRadius: '8px',
+                boxShadow: '0 4px 16px rgba(0,0,0,0.12)',
+                overflow: 'hidden',
+                zIndex: 10,
+                minWidth: '148px',
+              }}
+            >
+              {(['chat', 'email'] as const).map((kind) => (
+                <button
+                  key={kind}
+                  className="nodrag"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    data.onAddChild?.(id, kind);
+                    setMenuOpen(false);
+                  }}
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '8px',
+                    width: '100%',
+                    padding: '9px 14px',
+                    fontSize: '13px',
+                    fontWeight: 500,
+                    color: '#374151',
+                    background: 'transparent',
+                    border: 'none',
+                    cursor: 'pointer',
+                    textAlign: 'left',
+                    transition: 'background 0.1s',
+                  }}
+                  onMouseEnter={(e) => e.currentTarget.style.background = '#f3f4f6'}
+                  onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
+                >
+                  {kind === 'chat' ? '💬' : '✉️'}
+                  {kind === 'chat' ? 'Chat node' : 'Email node'}
+                </button>
+              ))}
+            </div>
+          )}
         </div>
       )}
  

@@ -1,31 +1,87 @@
-import type { ChatNode, ChatNodeData, SerializedChatNode } from '../types/node';
+import type {
+  ChatNode,
+  EmailNode,
+  ThoughtsNode,
+  ChatNodeData,
+  EmailNodeData,
+  SerializedNode,
+  SerializedChatNodeData,
+  SerializedEmailNodeData,
+} from '../types/node';
 
 type Callbacks = {
   onSendMessage: ChatNodeData['onSendMessage'];
   onAddChild: ChatNodeData['onAddChild'];
   onExpand: ChatNodeData['onExpand'];
   onUpdateSummary: ChatNodeData['onUpdateSummary'];
+  onUpdateEmail: EmailNodeData['onUpdateEmail'];
+  onSendEmail: EmailNodeData['onSendEmail'];
 };
 
-export function serializeNodes(nodes: ChatNode[]): SerializedChatNode[] {
-  return nodes.map((n) => ({
-    ...n,
-    data: {
-      context: n.data.context,
-      messages: n.data.messages,
-      summary: n.data.summary,
-      summaryMessageCount: n.data.summaryMessageCount,
-    },
-  }));
+export function serializeNodes(nodes: ThoughtsNode[]): SerializedNode[] {
+  return nodes.map((n) => {
+    if (n.data.kind === 'email') {
+      const d = n.data;
+      return {
+        ...n,
+        data: {
+          kind: 'email' as const,
+          to: d.to,
+          subject: d.subject,
+          body: d.body,
+          replyTo: d.replyTo,
+          sentAt: d.sentAt,
+          messageId: d.messageId,
+        } as SerializedEmailNodeData,
+      };
+    }
+
+    // chat (covers legacy nodes without kind)
+    const d = n.data as ChatNodeData;
+    return {
+      ...n,
+      data: {
+        kind: 'chat' as const,
+        context: d.context,
+        messages: d.messages,
+        summary: d.summary,
+        summaryMessageCount: d.summaryMessageCount,
+      } as SerializedChatNodeData,
+    };
+  });
 }
 
-export function deserializeNodes(nodes: SerializedChatNode[], callbacks: Callbacks): ChatNode[] {
+export function deserializeNodes(nodes: SerializedNode[], callbacks: Callbacks): ThoughtsNode[] {
   return nodes.map((n) => {
-    // Migrate legacy prompt/response format to messages[]
-    let messages = n.data.messages;
+    if ((n.data as { kind?: string }).kind === 'email') {
+      const d = n.data as SerializedEmailNodeData;
+      const emailNode: EmailNode = {
+        ...n,
+        type: 'emailNode',
+        data: {
+          kind: 'email',
+          to: d.to ?? '',
+          subject: d.subject ?? '',
+          body: d.body ?? '',
+          replyTo: d.replyTo ?? '',
+          sentAt: d.sentAt,
+          messageId: d.messageId,
+          status: 'idle',
+          onAddChild: callbacks.onAddChild,
+          onExpand: callbacks.onExpand,
+          onUpdateEmail: callbacks.onUpdateEmail,
+          onSendEmail: callbacks.onSendEmail,
+        },
+      };
+      return emailNode;
+    }
+
+    // chat or legacy (no kind field)
+    const d = n.data as SerializedChatNodeData;
+    let messages = d.messages;
     if (!messages || !Array.isArray(messages)) {
       messages = [];
-      const legacy = n.data as Record<string, unknown>;
+      const legacy = d as Record<string, unknown>;
       if (legacy.prompt && typeof legacy.prompt === 'string' && (legacy.prompt as string).trim()) {
         messages.push({ role: 'user', content: legacy.prompt as string });
       }
@@ -34,19 +90,22 @@ export function deserializeNodes(nodes: SerializedChatNode[], callbacks: Callbac
       }
     }
 
-    return {
+    const chatNode: ChatNode = {
       ...n,
+      type: 'chatNode',
       data: {
-        context: n.data.context,
+        kind: 'chat',
+        context: d.context ?? [],
         messages,
-        summary: n.data.summary,
-        summaryMessageCount: n.data.summaryMessageCount,
-        status: 'idle' as const,
+        summary: d.summary,
+        summaryMessageCount: d.summaryMessageCount,
+        status: 'idle',
         onSendMessage: callbacks.onSendMessage,
         onAddChild: callbacks.onAddChild,
         onExpand: callbacks.onExpand,
         onUpdateSummary: callbacks.onUpdateSummary,
       },
     };
+    return chatNode;
   });
 }

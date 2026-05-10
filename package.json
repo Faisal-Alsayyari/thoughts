@@ -23,10 +23,14 @@
     "@ai-sdk/google": "^3.0.43",
     "@ai-sdk/openai": "^3.0.41",
     "@upstash/redis": "^1.37.0",
+    "agentmail": "^0.5.1",
     "ai": "^6.0.116",
     "dotenv": "^17.3.1",
     "react-markdown": "^10.1.0",
     "react-syntax-highlighter": "^16.1.1",
     "zod": "^4.3.6"
+  },
+  "devDependencies": {
+    "@types/node": "^25.6.2"
   }
 }

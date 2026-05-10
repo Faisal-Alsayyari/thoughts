@@ -68,3 +68,37 @@ export async function checkRateLimit(
 
   return { allowed, remaining, resetAt: expireAt };
 }
+
+const EMAIL_DEVICE_DAILY_LIMIT = 10;
+const EMAIL_IP_DAILY_LIMIT = 20;
+
+/**
+ * Per-device and per-IP daily rate limit for the email send endpoint.
+ * Stricter than the chat limit since each send costs money.
+ */
+export async function checkEmailRateLimit(
+  deviceId: string,
+  ip: string,
+  timezone: string,
+): Promise<RateLimitResult> {
+  const localDate = computeLocalDate(timezone);
+  const expireAt = computeEndOfDayTs(timezone);
+
+  const deviceKey = `ratelimit:email:${deviceId}:${localDate}`;
+  const ipKey = `ratelimit:emailip:${ip}:${localDate}`;
+
+  const pipeline = redis.pipeline();
+  pipeline.incr(deviceKey);
+  pipeline.incr(ipKey);
+  const [deviceCount, ipCount] = (await pipeline.exec()) as [number, number];
+
+  const expiryPipeline = redis.pipeline();
+  if (deviceCount === 1) expiryPipeline.expireat(deviceKey, expireAt);
+  if (ipCount === 1) expiryPipeline.expireat(ipKey, expireAt);
+  if (deviceCount === 1 || ipCount === 1) await expiryPipeline.exec();
+
+  const allowed = deviceCount <= EMAIL_DEVICE_DAILY_LIMIT && ipCount <= EMAIL_IP_DAILY_LIMIT;
+  const remaining = Math.max(0, EMAIL_DEVICE_DAILY_LIMIT - deviceCount);
+
+  return { allowed, remaining, resetAt: expireAt };
+}

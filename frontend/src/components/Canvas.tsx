@@ -3,7 +3,10 @@ import '@xyflow/react/dist/style.css';
 import { useMemo, useEffect } from 'react';
 import { useChatTree } from '../hooks/useChatTree';
 import ChatNode from './ChatNode';
+import EmailNode from './EmailNode';
 import ExpandedChatView from './ExpandedChatView';
+import ExpandedEmailView from './ExpandedEmailView';
+import type { ChatNodeData, EmailNodeData } from '../types/node';
 
 interface CanvasProps {
   conversationId: string;
@@ -19,7 +22,8 @@ export default function Canvas({ conversationId, onTitleSetterReady, onResponse,
   const { 
     nodes, edges, onNodesChange, onEdgesChange, onConnect, loaded,
     expandedNodeId, handleCloseExpand, handleSendMessage,
-    handleSendInNewNode, streamingNodeId, streamingContent,
+    handleSendInNewNode, handleUpdateEmail, handleSendEmail,
+    streamingNodeId, streamingContent,
     setCustomTitle,
   } = useChatTree(conversationId, onResponse && onRateLimitExceeded ? { onResponse, onRateLimitExceeded } : undefined);
 
@@ -27,7 +31,7 @@ export default function Canvas({ conversationId, onTitleSetterReady, onResponse,
     onTitleSetterReady?.(setCustomTitle);
   }, [onTitleSetterReady, setCustomTitle]);
   
-  const nodeTypes = useMemo(() => ({ chatNode: ChatNode }), []);
+  const nodeTypes = useMemo(() => ({ chatNode: ChatNode, emailNode: EmailNode }), []);
 
   const expandedNode = expandedNodeId ? nodes.find(n => n.id === expandedNodeId) : null;
 
@@ -73,21 +77,47 @@ export default function Canvas({ conversationId, onTitleSetterReady, onResponse,
         <Background variant={BackgroundVariant.Dots} gap={12} size={1} />
       </ReactFlow>
 
-      {expandedNode && (
-        <ExpandedChatView
-          nodeId={expandedNode.id}
-          messages={expandedNode.data.messages}
-          context={expandedNode.data.context}
-          status={expandedNode.data.status}
-          streamingContent={streamingNodeId === expandedNode.id ? streamingContent : undefined}
-          onSendMessage={handleSendMessage}
-          onSendInNewNode={handleSendInNewNode}
-          onClose={handleClose}
-          remaining={remaining}
-          isLimited={isLimited}
-          resetAtLabel={resetAtLabel}
-        />
-      )}
+      {expandedNode && expandedNode.data.kind === 'chat' && (() => {
+        const d = expandedNode.data as ChatNodeData;
+        return (
+          <ExpandedChatView
+            nodeId={expandedNode.id}
+            messages={d.messages}
+            context={d.context}
+            status={d.status}
+            streamingContent={streamingNodeId === expandedNode.id ? streamingContent : undefined}
+            onSendMessage={handleSendMessage}
+            onSendInNewNode={handleSendInNewNode}
+            onClose={handleClose}
+            remaining={remaining}
+            isLimited={isLimited}
+            resetAtLabel={resetAtLabel}
+          />
+        );
+      })()}
+
+      {expandedNode && expandedNode.data.kind === 'email' && (() => {
+        const d = expandedNode.data as EmailNodeData;
+        return (
+          <ExpandedEmailView
+            nodeId={expandedNode.id}
+            to={d.to}
+            subject={d.subject}
+            body={d.body}
+            replyTo={d.replyTo}
+            status={d.status}
+            sentAt={d.sentAt}
+            messageId={d.messageId}
+            lastError={d.lastError}
+            onUpdateEmail={handleUpdateEmail}
+            onSendEmail={handleSendEmail}
+            onClose={handleClose}
+            remaining={remaining}
+            isLimited={isLimited}
+            resetAtLabel={resetAtLabel}
+          />
+        );
+      })()}
     </div>
   );
 }
